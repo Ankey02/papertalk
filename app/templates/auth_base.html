@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %} · {{ app_name }}</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body class="auth-page">
+<div class="auth-wrap">
+  <section class="auth-pitch">
+    <div class="brand"><svg class="logo" width="38" height="38" viewBox="0 0 32 32" style="flex:none" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#2d43e0"/><rect x="9" y="6.5" width="15.5" height="13.5" rx="5.5" fill="#ffffff"/><rect x="9" y="12" width="4.8" height="14.5" rx="2.4" fill="#ffffff"/><rect x="12.8" y="10" width="8.2" height="2.8" rx="1.4" fill="#ffe04a"/><rect x="12.8" y="14.4" width="5.4" height="2.2" rx="1.1" fill="#aab4f5"/></svg><span>{{ app_name }}</span></div>
+    <h1>Your notes can answer back.</h1>
+    <p>Upload a PDF, ask a question, and get an answer that shows the page it came from.</p>
+    <div class="demo" aria-hidden="true">
+      <div class="demo-q">Can a tuple be changed?</div>
+      <div class="demo-sheet">No. A tuple is immutable, so its items cannot be changed after it is created <mark>1</mark>. Use a list when you need to add or remove items <mark>2</mark>.</div>
+    </div>
+  </section>
+  <section class="auth-card">
+    {% block content %}{% endblock %}
+  </section>
+</div>
+</body>
+</html>
