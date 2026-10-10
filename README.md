@@ -1,81 +1,93 @@
-# PaperTalk: chat with your PDFs
+# PaperTalk
 
-A full-stack Python web app. Upload PDFs, ask questions, and get answers
-written from your own documents with the page number of every source.
+A chat-with-your-PDFs web app built with Python, FastAPI and SQLite. It reads uploaded PDFs, finds the passages closest to a question using embeddings, and streams back an answer that cites the page each fact came from. The pages are served by the API itself.
 
-## Features
+## What it does
 
-- Sign up, log in, log out (each user sees only their own data)
-- Upload PDFs by button or drag and drop
-- Ask one question across several documents (tick them in the sidebar)
-- Answers appear word by word, with a Stop button
-- Numbered citations: click one to read the exact passage in the Sources panel
-- Saved chat history, one-click Summarize, Copy answer, Export chat to a text file
-- Light and dark theme, works on phones
-- Demo mode: runs without an AI key so you can try it first
+- **Answers questions from your documents** using retrieval-augmented generation (RAG): only passages from the uploaded PDFs are given to the AI model.
+- **Cites every answer** with numbered sources. Clicking a number opens the exact passage and page in a side panel.
+- **Searches several PDFs at once**: tick the documents to include in the sidebar.
+- **Streams answers** word by word over a single HTTP response (`POST /api/chat`), with a Stop button that keeps the partial answer.
+- **Accounts and history**: sign up, log in, and every user sees only their own documents and chats.
+- **Frontend** with no build step (Jinja2 templates, plain CSS and JavaScript), light and dark theme, works on phones.
+- **Demo mode**: runs with no API key, using a keyword-based embedding, so the project can be tried immediately.
 
-## How to run it
+## How an answer is made
 
-You need Python 3.10 or newer.
+| Step | What happens | Where |
+|---|---|---|
+| Read | Text is extracted from the PDF page by page | `app/ingest.py` |
+| Chunk | Each page is cut into pieces of about 900 characters with 150 overlapping | `app/ingest.py` |
+| Embed | Every chunk becomes a 768-number vector | `app/ai.py` |
+| Store | Vectors are saved as BLOBs in SQLite | `app/vectorstore.py` |
+| Retrieve | The question is embedded and the 5 closest chunks are found by cosine similarity (NumPy) | `app/vectorstore.py` |
+| Generate | The chunks and the question go to the model, which must cite them as `[1]`, `[2]` | `app/ai.py` |
+
+Two details improve retrieval: follow-up questions are searched together with the previous question, and "summarize" style questions take chunks spread evenly across the whole document instead of the top matches.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.10+, FastAPI, Uvicorn |
+| Database | SQLite (users, documents, chunks, chats, messages) |
+| Vector search | NumPy cosine similarity over embeddings stored in SQLite |
+| AI | Google Gemini REST API for embeddings and answers, called with httpx |
+| PDF reading | pypdf |
+| Auth | Signed session cookie, PBKDF2-SHA256 password hashing |
+| Frontend | Jinja2, CSS, JavaScript |
+
+## Run it locally
 
 ```bash
-# 1. Open a terminal in this folder, then create a virtual environment
-python -m venv .venv
-
-# 2. Turn it on
-.venv\Scripts\activate          # Windows
-source .venv/bin/activate       # Mac or Linux
-
-# 3. Install the libraries
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 4. Start the app
 python run.py
 ```
 
-Open http://127.0.0.1:8000 in your browser and create an account.
+Open http://127.0.0.1:8000 and create an account.
 
-## Turning on real AI answers
+## Turning on AI answers
 
-1. Get a free key at https://aistudio.google.com/apikey
-2. Copy `.env.example` to a new file named `.env`
-3. Paste the key after `GEMINI_API_KEY=`
-4. Stop the app (Ctrl + C) and run `python run.py` again
+Without a key the app runs in demo mode and returns the closest passages instead of a written answer.
 
-Documents uploaded in demo mode are re-indexed automatically on the next question.
+1. Create a free key at https://aistudio.google.com/apikey
+2. Copy `.env.example` to `.env` and set `GEMINI_API_KEY`
+3. Restart the app
 
-If you see "model name was not found", Google has renamed a model. Look up the
-current free Flash model at https://ai.google.dev/gemini-api/docs/models and put
-its name in `GEMINI_CHAT_MODEL` in `.env`.
+Documents uploaded in demo mode are re-indexed automatically on the next question. Model names can be changed in `.env`.
 
-## How it works
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/state` | The user's documents and chats |
+| `POST` | `/api/documents` | Upload and index a PDF |
+| `DELETE` | `/api/documents/{id}` | Delete a document and its chunks |
+| `POST` | `/api/chat` | Ask a question; streams JSON lines (`sources`, `token`, `done`) |
+| `GET` | `/api/chats/{id}` | Messages of one chat |
+| `DELETE` | `/api/chats/{id}` | Delete a chat |
+
+Interactive API docs are at `/docs` while the app is running.
+
+## Project structure
 
 ```
-Upload PDF -> read text page by page -> cut into chunks -> embed each chunk -> save in SQLite
-Question   -> embed the question -> find the closest chunks -> send them to the AI -> stream the answer
+run.py                 starts the server
+app/main.py            pages and API routes
+app/config.py          settings from .env
+app/db.py              SQLite schema and connection helper
+app/auth.py            password hashing and login check
+app/ingest.py          PDF text extraction and chunking
+app/ai.py              Gemini calls and demo mode
+app/vectorstore.py     saving and searching embeddings
+app/templates/         HTML pages
+app/static/            style.css, app.js, logo.svg
 ```
 
-This pattern is called RAG (retrieval-augmented generation).
+## Limits
 
-## Files
-
-| File | What it does |
-|---|---|
-| `run.py` | Starts the server |
-| `app/main.py` | All pages and API routes (FastAPI) |
-| `app/config.py` | Settings read from `.env` |
-| `app/db.py` | SQLite tables: users, documents, chunks, chats, messages |
-| `app/auth.py` | Password hashing and the login check |
-| `app/ingest.py` | Reads the PDF and cuts it into chunks |
-| `app/ai.py` | Calls the Gemini API for embeddings and answers; demo mode |
-| `app/vectorstore.py` | Saves embeddings and finds the closest chunks with NumPy |
-| `app/templates/` | HTML pages (Jinja2) |
-| `app/static/` | `style.css` and `app.js` for the main page |
-| `data/` | Created on first run: the database and uploaded PDFs |
-
-## Ideas for the next version
-
-- Swap `vectorstore.py` for ChromaDB or FAISS
-- Read scanned PDFs with OCR
-- Support Word and text files
-- Deploy it online (Render or Railway) with PostgreSQL
+- Scanned PDFs without selectable text are rejected (no OCR yet).
+- Uploads are limited to 20 MB and 400 pages.
+- Vector search loads a user's selected chunks into memory, which suits personal use rather than very large libraries.
